@@ -15,6 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import com.jarrod.house.ui.screens.AdminDashboard
 import com.jarrod.house.ui.screens.LoginScreen
 import com.jarrod.house.ui.screens.UserDashboard
+import com.jarrod.house.ui.screens.UsersManagementScreen
+import com.jarrod.house.ui.screens.ApartmentsManagementScreen
 import com.jarrod.house.ui.theme.HousemeterTheme
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +72,12 @@ fun HouseMeterApp() {
                 onViewPayments = {
                     // TODO: Navigate to payments screen
                 },
+                onManageUsers = {
+                    navController.navigate("users_management")
+                },
+                onManageApartments = {
+                    navController.navigate("apartments_management")
+                },
                 onLogout = {
                     userRole = null
                     navController.navigate("login") {
@@ -92,6 +100,22 @@ fun HouseMeterApp() {
                     navController.navigate("login") {
                         popUpTo("user_dashboard") { inclusive = true }
                     }
+                }
+            )
+        }
+
+        composable("users_management") {
+            UsersManagementScreen(
+                onBackClick = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable("apartments_management") {
+            ApartmentsManagementScreen(
+                onBackClick = {
+                    navController.popBackStack()
                 }
             )
         }

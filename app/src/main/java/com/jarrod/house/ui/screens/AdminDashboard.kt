@@ -9,10 +9,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.data.model.Payment
+import com.jarrod.house.ui.viewmodel.DebtViewModel
+import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
+import com.jarrod.house.ui.viewmodel.UsersViewModel
+import com.jarrod.house.ui.viewmodel.PaymentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -20,10 +26,12 @@ fun AdminDashboard(
     onCreateDebt: () -> Unit,
     onViewMetrics: () -> Unit,
     onViewPayments: () -> Unit,
+    onManageUsers: () -> Unit,
+    onManageApartments: () -> Unit,
     onLogout: () -> Unit
 ) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Deudas", "Pagos", "Métricas")
+    val tabs = listOf("Deudas", "Pagos", "Métricas", "Gestión")
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -49,12 +57,47 @@ fun AdminDashboard(
             0 -> DebtsTab(onCreateDebt = onCreateDebt)
             1 -> PaymentsTab(onViewPayments = onViewPayments)
             2 -> MetricsTab(onViewMetrics = onViewMetrics)
+            3 -> ManagementTab(
+                onManageUsers = onManageUsers,
+                onManageApartments = onManageApartments
+            )
         }
     }
 }
 
 @Composable
-fun DebtsTab(onCreateDebt: () -> Unit) {
+fun DebtsTab(
+    onCreateDebt: () -> Unit,
+    debtViewModel: DebtViewModel = viewModel(),
+    apartmentsViewModel: ApartmentsViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val debts by debtViewModel.debts.collectAsState()
+    val apartments by apartmentsViewModel.apartments.collectAsState()
+    val isLoading by debtViewModel.isLoading.collectAsState()
+    val error by debtViewModel.error.collectAsState()
+    val updateResult by debtViewModel.updateResult.collectAsState()
+
+    var showEditDialog by remember { mutableStateOf(false) }
+    var selectedDebt by remember { mutableStateOf<Debt?>(null) }
+
+    // Load debts when tab is displayed
+    LaunchedEffect(Unit) {
+        debtViewModel.loadDebts(context)
+        apartmentsViewModel.loadApartments(context)
+    }
+
+    // Handle update results
+    LaunchedEffect(updateResult) {
+        updateResult?.let { result ->
+            if (result.isSuccess) {
+                showEditDialog = false
+                selectedDebt = null
+                debtViewModel.clearCreateResult()
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -80,32 +123,95 @@ fun DebtsTab(onCreateDebt: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mock debt list
-        LazyColumn {
-            items(5) { index ->
-                DebtCard(
-                    debt = Debt(
-                        id = index + 1,
-                        apartment_id = index + 1,
-                        amount = 100.0 + (index * 25),
-                        description = "Pago de servicios mes ${index + 1}",
-                        due_date = "2024-01-${15 + index}",
-                        status = if (index % 2 == 0) "pending" else "paid",
-                        created_at = "2024-01-01",
-                        apartment_number = "${index + 1}01",
-                        floor_number = index + 1
-                    ),
-                    onEdit = { },
-                    onDelete = { }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
             }
+        } else {
+            LazyColumn {
+                items(debts) { debt ->
+                    DebtCard(
+                        debt = debt,
+                        onEdit = { 
+                            selectedDebt = debt
+                            showEditDialog = true
+                        },
+                        onDelete = { 
+                            debtViewModel.deleteDebt(context, debt.id)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+
+        // Error handling
+        error?.let { errorMsg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(errorMsg, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { debtViewModel.clearError() }) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
+
+        // Edit dialog
+        if (showEditDialog && selectedDebt != null) {
+            EditDebtDialog(
+                debt = selectedDebt!!,
+                apartments = apartments,
+                onDismiss = { 
+                    showEditDialog = false
+                    selectedDebt = null
+                },
+                onConfirm = { apartmentId, amount, description, dueDate ->
+                    debtViewModel.updateDebt(context, selectedDebt!!.id, apartmentId, amount, description, dueDate)
+                }
+            )
         }
     }
 }
 
 @Composable
-fun PaymentsTab(onViewPayments: () -> Unit) {
+fun PaymentsTab(
+    onViewPayments: () -> Unit,
+    paymentViewModel: PaymentViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val payments by paymentViewModel.payments.collectAsState()
+    val isLoading by paymentViewModel.isLoading.collectAsState()
+    val error by paymentViewModel.error.collectAsState()
+    val updateResult by paymentViewModel.updateResult.collectAsState()
+
+    // Load payments when tab is displayed
+    LaunchedEffect(Unit) {
+        paymentViewModel.loadPayments(context)
+    }
+
+    // Handle update results
+    LaunchedEffect(updateResult) {
+        updateResult?.let { result ->
+            if (result.isSuccess) {
+                paymentViewModel.clearUpdateResult()
+            }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -119,33 +225,93 @@ fun PaymentsTab(onViewPayments: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn {
-            items(3) { index ->
-                PendingPaymentCard(
-                    payment = Payment(
-                        id = index + 1,
-                        debt_id = index + 1,
-                        amount = 100.0 + (index * 25),
-                        payment_date = "2024-01-${10 + index}",
-                        receipt_path = "receipt_${index + 1}.jpg",
-                        status = "pending",
-                        approved_by = null,
-                        approved_at = null,
-                        notes = null,
-                        apartment_number = "${index + 1}01",
-                        floor_number = index + 1
-                    ),
-                    onApprove = { },
-                    onReject = { }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn {
+                items(payments.filter { it.status == "pending" }) { payment ->
+                    PendingPaymentCard(
+                        payment = payment,
+                        onApprove = { 
+                            paymentViewModel.updatePaymentStatus(
+                                context, 
+                                payment.id, 
+                                "approved", 
+                                null
+                            )
+                        },
+                        onReject = { 
+                            paymentViewModel.updatePaymentStatus(
+                                context, 
+                                payment.id, 
+                                "rejected", 
+                                null
+                            )
+                        },
+                        onDelete = {
+                            paymentViewModel.deletePayment(context, payment.id)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
+
+        // Error handling
+        error?.let { errorMsg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(errorMsg, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { paymentViewModel.clearError() }) {
+                        Text("OK")
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun MetricsTab(onViewMetrics: () -> Unit) {
+fun MetricsTab(
+    onViewMetrics: () -> Unit,
+    debtViewModel: DebtViewModel = viewModel(),
+    paymentViewModel: PaymentViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val debts by debtViewModel.debts.collectAsState()
+    val payments by paymentViewModel.payments.collectAsState()
+    val isLoading by debtViewModel.isLoading.collectAsState()
+
+    // Load data when tab is displayed
+    LaunchedEffect(Unit) {
+        debtViewModel.loadDebts(context)
+        paymentViewModel.loadPayments(context)
+    }
+
+    // Calculate metrics
+    val totalDebts = debts.size
+    val pendingDebts = debts.count { it.status == "pending" }
+    val paidDebts = debts.count { it.status == "paid" }
+    val totalDebtAmount = debts.sumOf { it.amount }
+    val pendingDebtAmount = debts.filter { it.status == "pending" }.sumOf { it.amount }
+    val pendingPayments = payments.count { it.status == "pending" }
+    val approvedPayments = payments.count { it.status == "approved" }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -159,29 +325,100 @@ fun MetricsTab(onViewMetrics: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onViewMetrics
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Analytics, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Ver Métricas Detalladas",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                CircularProgressIndicator()
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    // Debt metrics
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Receipt, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Resumen de Deudas",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Total de deudas: $totalDebts")
+                            Text("Deudas pendientes: $pendingDebts")
+                            Text("Deudas pagadas: $paidDebts")
+                            Text("Monto total: $${String.format("%.2f", totalDebtAmount)}")
+                            Text("Monto pendiente: $${String.format("%.2f", pendingDebtAmount)}")
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Resumen de pagos, historial y estadísticas",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+                item {
+                    // Payment metrics
+                    Card(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Payment, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Resumen de Pagos",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Pagos pendientes: $pendingPayments")
+                            Text("Pagos aprobados: $approvedPayments")
+                        }
+                    }
+                }
+
+                item {
+                    // Detailed metrics card
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onViewMetrics
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Analytics, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Ver Métricas Detalladas",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Reportes avanzados, historial y estadísticas",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -260,7 +497,8 @@ fun DebtCard(
 fun PendingPaymentCard(
     payment: Payment,
     onApprove: () -> Unit,
-    onReject: () -> Unit
+    onReject: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -298,6 +536,17 @@ fun PendingPaymentCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
+                onDelete?.let { deleteCallback ->
+                    TextButton(
+                        onClick = deleteCallback,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Eliminar")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
                 OutlinedButton(onClick = onReject) {
                     Text("Rechazar")
                 }
@@ -305,6 +554,80 @@ fun PendingPaymentCard(
                 Button(onClick = onApprove) {
                     Text("Aprobar")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ManagementTab(
+    onManageUsers: () -> Unit,
+    onManageApartments: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Gestión del Sistema",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onManageUsers
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Person, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Gestionar Usuarios",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Crear, editar y eliminar usuarios del sistema",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onManageApartments
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Business, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Gestionar Propiedades",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Administrar pisos, apartamentos y medidores",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

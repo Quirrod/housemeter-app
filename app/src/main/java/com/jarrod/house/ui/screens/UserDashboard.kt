@@ -9,24 +9,40 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.data.model.Payment
+import com.jarrod.house.ui.viewmodel.UserViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserDashboard(
     onPayDebt: (Debt) -> Unit,
     onViewPaymentHistory: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    userViewModel: UserViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Mis Deudas", "Historial")
+    val tabs = listOf("Mis Deudas", "Historial", "Perfil")
+
+    val userProfile by userViewModel.userProfile.collectAsState()
+
+    // Load user profile when dashboard starts
+    LaunchedEffect(Unit) {
+        userViewModel.loadUserProfile(context)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Mi Apartamento") },
+            title = { 
+                Text(
+                    userProfile?.let { "Apt. ${it.apartment_number}" } ?: "Mi Apartamento"
+                )
+            },
             actions = {
                 IconButton(onClick = onLogout) {
                     Icon(Icons.Default.ExitToApp, contentDescription = "Cerrar sesión")
@@ -45,14 +61,28 @@ fun UserDashboard(
         }
 
         when (selectedTab) {
-            0 -> MyDebtsTab(onPayDebt = onPayDebt)
-            1 -> PaymentHistoryTab(onViewPaymentHistory = onViewPaymentHistory)
+            0 -> MyDebtsTab(onPayDebt = onPayDebt, userViewModel = userViewModel)
+            1 -> PaymentHistoryTab(onViewPaymentHistory = onViewPaymentHistory, userViewModel = userViewModel)
+            2 -> UserProfileTab(userViewModel = userViewModel)
         }
     }
 }
 
 @Composable
-fun MyDebtsTab(onPayDebt: (Debt) -> Unit) {
+fun MyDebtsTab(
+    onPayDebt: (Debt) -> Unit,
+    userViewModel: UserViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val userDebts by userViewModel.userDebts.collectAsState()
+    val isLoading by userViewModel.isLoading.collectAsState()
+    val error by userViewModel.error.collectAsState()
+
+    // Load user debts when tab is displayed
+    LaunchedEffect(Unit) {
+        userViewModel.loadUserDebts(context)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,33 +96,14 @@ fun MyDebtsTab(onPayDebt: (Debt) -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mock debt list for user
-        val userDebts = listOf(
-            Debt(
-                id = 1,
-                apartment_id = 1,
-                amount = 125.0,
-                description = "Pago de servicios enero",
-                due_date = "2024-01-15",
-                status = "pending",
-                created_at = "2024-01-01",
-                apartment_number = "101",
-                floor_number = 1
-            ),
-            Debt(
-                id = 2,
-                apartment_id = 1,
-                amount = 150.0,
-                description = "Pago de servicios febrero",
-                due_date = "2024-02-15",
-                status = "overdue",
-                created_at = "2024-02-01",
-                apartment_number = "101",
-                floor_number = 1
-            )
-        )
-
-        if (userDebts.isEmpty()) {
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (userDebts.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -121,7 +132,7 @@ fun MyDebtsTab(onPayDebt: (Debt) -> Unit) {
             }
         } else {
             LazyColumn {
-                items(userDebts) { debt ->
+                items(userDebts.filter { it.status == "pending" || it.status == "overdue" }) { debt ->
                     UserDebtCard(
                         debt = debt,
                         onPay = { onPayDebt(debt) }
@@ -130,11 +141,46 @@ fun MyDebtsTab(onPayDebt: (Debt) -> Unit) {
                 }
             }
         }
+
+        // Error handling
+        error?.let { errorMsg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(errorMsg, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { userViewModel.clearError() }) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun PaymentHistoryTab(onViewPaymentHistory: () -> Unit) {
+fun PaymentHistoryTab(
+    onViewPaymentHistory: () -> Unit,
+    userViewModel: UserViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val userPayments by userViewModel.userPayments.collectAsState()
+    val isLoading by userViewModel.isLoading.collectAsState()
+    val error by userViewModel.error.collectAsState()
+
+    // Load user payments when tab is displayed
+    LaunchedEffect(Unit) {
+        userViewModel.loadUserPayments(context)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -148,38 +194,68 @@ fun PaymentHistoryTab(onViewPaymentHistory: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mock payment history
-        val paymentHistory = listOf(
-            Payment(
-                id = 1,
-                debt_id = 1,
-                amount = 100.0,
-                payment_date = "2024-01-10",
-                receipt_path = "receipt_1.jpg",
-                status = "approved",
-                approved_by = 1,
-                approved_at = "2024-01-11",
-                notes = null,
-                debt_description = "Pago de servicios diciembre"
-            ),
-            Payment(
-                id = 2,
-                debt_id = 2,
-                amount = 110.0,
-                payment_date = "2024-01-08",
-                receipt_path = "receipt_2.jpg",
-                status = "pending",
-                approved_by = null,
-                approved_at = null,
-                notes = null,
-                debt_description = "Pago de servicios noviembre"
-            )
-        )
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (userPayments.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Sin historial de pagos",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Aún no has realizado ningún pago",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            LazyColumn {
+                items(userPayments.sortedByDescending { it.payment_date }) { payment ->
+                    PaymentHistoryCard(payment = payment)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+            }
+        }
 
-        LazyColumn {
-            items(paymentHistory) { payment ->
-                PaymentHistoryCard(payment = payment)
-                Spacer(modifier = Modifier.height(8.dp))
+        // Error handling
+        error?.let { errorMsg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(errorMsg, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { userViewModel.clearError() }) {
+                        Text("OK")
+                    }
+                }
             }
         }
     }
@@ -337,5 +413,206 @@ fun PaymentHistoryCard(payment: Payment) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun UserProfileTab(
+    userViewModel: UserViewModel = viewModel()
+) {
+    val context = LocalContext.current
+    val userProfile by userViewModel.userProfile.collectAsState()
+    val isLoading by userViewModel.isLoading.collectAsState()
+    val error by userViewModel.error.collectAsState()
+
+    // Load user profile when tab is displayed
+    LaunchedEffect(Unit) {
+        userViewModel.loadUserProfile(context)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Mi Perfil",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            userProfile?.let { profile ->
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        // User Info Card
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Información Personal",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                ProfileInfoRow("Usuario", profile.username)
+                                ProfileInfoRow("Rol", profile.role.uppercase())
+                                ProfileInfoRow("Registrado", profile.created_at)
+                            }
+                        }
+                    }
+
+                    item {
+                        // Apartment Info Card
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Business,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Mi Apartamento",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                profile.apartment_number?.let { 
+                                    ProfileInfoRow("Número", it)
+                                }
+                                profile.floor_number?.let { 
+                                    ProfileInfoRow("Piso", it.toString())
+                                }
+                                profile.meter_number?.let { 
+                                    ProfileInfoRow("Medidor", it)
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        // Account Status Card
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Estado de Cuenta",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Cuenta Activa",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Error handling
+        error?.let { errorMsg ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Error, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(errorMsg, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { userViewModel.clearError() }) {
+                        Text("OK")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }

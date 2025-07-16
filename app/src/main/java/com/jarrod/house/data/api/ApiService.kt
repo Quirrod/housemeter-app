@@ -43,6 +43,9 @@ interface ApiService {
         @Body request: PaymentStatusRequest
     ): Response<ApiResponse>
 
+    @DELETE("payments/{id}")
+    suspend fun deletePayment(@Path("id") id: Int): Response<ApiResponse>
+
     @GET("metrics/payments")
     suspend fun getPaymentMetrics(
         @Query("start_date") startDate: String?,
@@ -58,6 +61,39 @@ interface ApiService {
 
     @GET("users/profile")
     suspend fun getProfile(): Response<UserProfile>
+
+    @GET("users")
+    suspend fun getUsers(): Response<List<User>>
+
+    @POST("users")
+    suspend fun createUser(@Body request: CreateUserRequest): Response<User>
+
+    @PUT("users/{id}")
+    suspend fun updateUser(@Path("id") id: Int, @Body request: UpdateUserRequest): Response<ApiResponse>
+
+    @DELETE("users/{id}")
+    suspend fun deleteUser(@Path("id") id: Int): Response<ApiResponse>
+
+    @POST("apartments")
+    suspend fun createApartment(@Body request: CreateApartmentRequest): Response<Apartment>
+
+    @PUT("apartments/{id}")
+    suspend fun updateApartment(@Path("id") id: Int, @Body request: UpdateApartmentRequest): Response<ApiResponse>
+
+    @DELETE("apartments/{id}")
+    suspend fun deleteApartment(@Path("id") id: Int): Response<ApiResponse>
+
+    @GET("floors")
+    suspend fun getFloors(): Response<List<Floor>>
+
+    @POST("floors")
+    suspend fun createFloor(@Body request: CreateFloorRequest): Response<Floor>
+
+    @PUT("floors/{id}")
+    suspend fun updateFloor(@Path("id") id: Int, @Body request: UpdateFloorRequest): Response<ApiResponse>
+
+    @DELETE("floors/{id}")
+    suspend fun deleteFloor(@Path("id") id: Int): Response<ApiResponse>
 }
 
 data class DebtRequest(
@@ -105,4 +141,40 @@ data class UserProfile(
     val apartment_number: String?,
     val meter_number: String?,
     val floor_number: Int?
+)
+
+data class CreateUserRequest(
+    val username: String,
+    val password: String,
+    val role: String,
+    val apartment_id: Int?
+)
+
+data class UpdateUserRequest(
+    val username: String,
+    val password: String?,
+    val role: String,
+    val apartment_id: Int?
+)
+
+data class CreateApartmentRequest(
+    val floor_id: Int,
+    val apartment_number: String,
+    val meter_number: String
+)
+
+data class UpdateApartmentRequest(
+    val floor_id: Int,
+    val apartment_number: String,
+    val meter_number: String
+)
+
+data class CreateFloorRequest(
+    val floor_number: Int,
+    val description: String?
+)
+
+data class UpdateFloorRequest(
+    val floor_number: Int,
+    val description: String?
 )
