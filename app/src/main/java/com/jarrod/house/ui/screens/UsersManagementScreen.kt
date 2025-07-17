@@ -29,12 +29,15 @@ fun UsersManagementScreen(
 ) {
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var selectedUser by remember { mutableStateOf<User?>(null) }
     
     val users by usersViewModel.users.collectAsState()
     val apartments by apartmentsViewModel.apartments.collectAsState()
     val isLoading by usersViewModel.isLoading.collectAsState()
     val error by usersViewModel.error.collectAsState()
     val createResult by usersViewModel.createResult.collectAsState()
+    val updateResult by usersViewModel.updateResult.collectAsState()
 
     // Load data when screen starts
     LaunchedEffect(Unit) {
@@ -48,6 +51,17 @@ fun UsersManagementScreen(
             if (result.isSuccess) {
                 showCreateDialog = false
                 usersViewModel.clearCreateResult()
+            }
+        }
+    }
+
+    // Handle update result
+    LaunchedEffect(updateResult) {
+        updateResult?.let { result ->
+            if (result.isSuccess) {
+                showEditDialog = false
+                selectedUser = null
+                usersViewModel.clearUpdateResult()
             }
         }
     }
@@ -84,7 +98,8 @@ fun UsersManagementScreen(
                         UserCard(
                             user = user,
                             onEdit = { 
-                                // TODO: Implement edit
+                                selectedUser = user
+                                showEditDialog = true
                             },
                             onDelete = { 
                                 usersViewModel.deleteUser(context, user.id)
@@ -124,6 +139,20 @@ fun UsersManagementScreen(
             onDismiss = { showCreateDialog = false },
             onConfirm = { username, password, role, apartmentId ->
                 usersViewModel.createUser(context, username, password, role, apartmentId)
+            }
+        )
+    }
+
+    if (showEditDialog && selectedUser != null) {
+        EditUserDialog(
+            user = selectedUser!!,
+            apartments = apartments,
+            onDismiss = { 
+                showEditDialog = false
+                selectedUser = null
+            },
+            onConfirm = { username: String, role: String, apartmentId: Int? ->
+                usersViewModel.updateUser(context, selectedUser!!.id, username, null, role, apartmentId)
             }
         )
     }
@@ -306,6 +335,130 @@ fun CreateUserDialog(
                         enabled = username.isNotBlank() && password.isNotBlank()
                     ) {
                         Text("Crear")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditUserDialog(
+    user: User,
+    apartments: List<Apartment>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, Int?) -> Unit
+) {
+    var username by remember { mutableStateOf(user.username) }
+    var selectedRole by remember { mutableStateOf(user.role) }
+    var selectedApartmentId by remember { mutableStateOf(user.apartment_id) }
+    var expanded by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Editar Usuario",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Nombre de usuario") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                // Role selection
+                Column {
+                    Text("Rol:", style = MaterialTheme.typography.bodyMedium)
+                    Row {
+                        RadioButton(
+                            selected = selectedRole == "user",
+                            onClick = { 
+                                selectedRole = "user"
+                                if (selectedRole == "admin") {
+                                    selectedApartmentId = null
+                                }
+                            }
+                        )
+                        Text("Usuario", modifier = Modifier.padding(start = 8.dp))
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        RadioButton(
+                            selected = selectedRole == "admin",
+                            onClick = { 
+                                selectedRole = "admin"
+                                selectedApartmentId = null
+                            }
+                        )
+                        Text("Administrador", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+
+                // Apartment selection (only for users)
+                if (selectedRole == "user") {
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedApartmentId?.let { id ->
+                                apartments.find { it.id == id }?.apartment_number ?: ""
+                            } ?: "Seleccionar apartamento",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Apartamento") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .menuAnchor()
+                                .fillMaxWidth()
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            apartments.forEach { apartment ->
+                                DropdownMenuItem(
+                                    text = { Text("${apartment.apartment_number} - Piso ${apartment.floor_number}") },
+                                    onClick = {
+                                        selectedApartmentId = apartment.id
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancelar")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (username.isNotBlank()) {
+                                onConfirm(username, selectedRole, selectedApartmentId)
+                            }
+                        },
+                        enabled = username.isNotBlank()
+                    ) {
+                        Text("Guardar")
                     }
                 }
             }

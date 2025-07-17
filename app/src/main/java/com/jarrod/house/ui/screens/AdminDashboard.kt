@@ -1,18 +1,33 @@
 package com.jarrod.house.ui.screens
 
+import android.annotation.SuppressLint
+import androidx.compose.animation.*
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.data.model.Payment
 import com.jarrod.house.ui.viewmodel.DebtViewModel
@@ -20,7 +35,7 @@ import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
 import com.jarrod.house.ui.viewmodel.UsersViewModel
 import com.jarrod.house.ui.viewmodel.PaymentViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun AdminDashboard(
     onCreateDebt: () -> Unit,
@@ -30,37 +45,102 @@ fun AdminDashboard(
     onManageApartments: () -> Unit,
     onLogout: () -> Unit
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Deudas", "Pagos", "Métricas", "Gestión")
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Panel Administrador") },
-            actions = {
-                IconButton(onClick = onLogout) {
-                    Icon(Icons.Default.ExitToApp, contentDescription = "Cerrar sesión")
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.05f),
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Enhanced TopAppBar
+            TopAppBar(
+                title = { 
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Panel Administrador",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onLogout) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ExitToApp,
+                            contentDescription = "Cerrar sesión",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                )
+            )
+
+            // Enhanced TabRow
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        height = 3.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        selectedContentColor = MaterialTheme.colorScheme.primary,
+                        unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = { 
+                            Text(
+                                title,
+                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
                 }
             }
-        )
 
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
-                )
+            // Tab content with animated transitions
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
+                        slideOutHorizontally { width -> -width } + fadeOut())
+                }
+            ) { tab ->
+                when (tab) {
+                    0 -> DebtsTab(onCreateDebt = onCreateDebt)
+                    1 -> PaymentsTab(onViewPayments = onViewPayments)
+                    2 -> MetricsTab(onViewMetrics = onViewMetrics)
+                    3 -> ManagementTab(
+                        onManageUsers = onManageUsers,
+                        onManageApartments = onManageApartments
+                    )
+                }
             }
-        }
-
-        when (selectedTab) {
-            0 -> DebtsTab(onCreateDebt = onCreateDebt)
-            1 -> PaymentsTab(onViewPayments = onViewPayments)
-            2 -> MetricsTab(onViewMetrics = onViewMetrics)
-            3 -> ManagementTab(
-                onManageUsers = onManageUsers,
-                onManageApartments = onManageApartments
-            )
         }
     }
 }
@@ -77,8 +157,10 @@ fun DebtsTab(
     val isLoading by debtViewModel.isLoading.collectAsState()
     val error by debtViewModel.error.collectAsState()
     val updateResult by debtViewModel.updateResult.collectAsState()
+    val createResult by debtViewModel.createResult.collectAsState()
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showCreateDialog by remember { mutableStateOf(false) }
     var selectedDebt by remember { mutableStateOf<Debt?>(null) }
 
     // Load debts when tab is displayed
@@ -93,6 +175,16 @@ fun DebtsTab(
             if (result.isSuccess) {
                 showEditDialog = false
                 selectedDebt = null
+                debtViewModel.clearCreateResult()
+            }
+        }
+    }
+
+    // Handle create results
+    LaunchedEffect(createResult) {
+        createResult?.let { result ->
+            if (result.isSuccess) {
+                showCreateDialog = false
                 debtViewModel.clearCreateResult()
             }
         }
@@ -114,7 +206,7 @@ fun DebtsTab(
                 fontWeight = FontWeight.Bold
             )
             FloatingActionButton(
-                onClick = onCreateDebt,
+                onClick = { showCreateDialog = true },
                 modifier = Modifier.size(48.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Crear deuda")
@@ -133,7 +225,7 @@ fun DebtsTab(
         } else {
             LazyColumn {
                 items(debts) { debt ->
-                    DebtCard(
+                    AdminDebtCard(
                         debt = debt,
                         onEdit = { 
                             selectedDebt = debt
@@ -179,8 +271,19 @@ fun DebtsTab(
                     showEditDialog = false
                     selectedDebt = null
                 },
-                onConfirm = { apartmentId, amount, description, dueDate ->
+                onConfirm = { apartmentId: Int, amount: Double, description: String?, dueDate: String? ->
                     debtViewModel.updateDebt(context, selectedDebt!!.id, apartmentId, amount, description, dueDate)
+                }
+            )
+        }
+
+        // Create dialog
+        if (showCreateDialog) {
+            CreateDebtDialog(
+                apartments = apartments,
+                onDismiss = { showCreateDialog = false },
+                onConfirm = { apartmentId: Int, amount: Double, description: String?, dueDate: String? ->
+                    debtViewModel.createDebt(context, apartmentId, amount, description, dueDate)
                 }
             )
         }
@@ -286,6 +389,7 @@ fun PaymentsTab(
     }
 }
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun MetricsTab(
     onViewMetrics: () -> Unit,
@@ -424,68 +528,180 @@ fun MetricsTab(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DebtCard(
+fun AdminDebtCard(
     debt: Debt,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Text(
-                    text = "Apt. ${debt.apartment_number} - Piso ${debt.floor_number}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Badge(
-                    containerColor = when (debt.status) {
-                        "paid" -> MaterialTheme.colorScheme.primary
-                        "pending" -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.surface
+                Column(modifier = Modifier.weight(1f)) {
+                    // Header with apartment info
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Home,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Apartamento ${debt.apartment_number}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
+                    
+                    Text(
+                        text = "Piso ${debt.floor_number}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    
+                    // Amount with emphasis
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.AttachMoney,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$${debt.amount}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    
+                    debt.description?.let { desc ->
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    
+                    debt.due_date?.let { date ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Vence: $date",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                
+                // Status badge with improved design
+                val statusColor = when (debt.status) {
+                    "pending" -> MaterialTheme.colorScheme.error
+                    "paid" -> MaterialTheme.colorScheme.primary
+                    "overdue" -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+                
+                val statusText = when (debt.status) {
+                    "pending" -> "Pendiente"
+                    "paid" -> "Pagado"
+                    "overdue" -> "Vencida"
+                    else -> debt.status
+                }
+                
+                Badge(
+                    containerColor = statusColor,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(start = 8.dp)
                 ) {
-                    Text(debt.status.uppercase())
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = debt.description ?: "Sin descripción",
-                style = MaterialTheme.typography.bodyMedium
-            )
-            
-            Text(
-                text = "Monto: $${debt.amount}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold
-            )
-            
-            if (debt.due_date != null) {
-                Text(
-                    text = "Vencimiento: ${debt.due_date}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons with improved design
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = onEdit) {
+                OutlinedButton(
+                    onClick = onEdit,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Editar")
                 }
-                TextButton(onClick = onDelete) {
+                
+                Spacer(modifier = Modifier.width(8.dp))
+                
+                OutlinedButton(
+                    onClick = onDelete,
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Eliminar")
                 }
             }

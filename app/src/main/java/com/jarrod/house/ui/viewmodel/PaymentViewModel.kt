@@ -1,6 +1,7 @@
 package com.jarrod.house.ui.viewmodel
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jarrod.house.data.model.Payment
@@ -21,6 +22,9 @@ class PaymentViewModel : ViewModel() {
 
     private val _updateResult = MutableStateFlow<Result<Boolean>?>(null)
     val updateResult: StateFlow<Result<Boolean>?> = _updateResult
+
+    private val _createResult = MutableStateFlow<Result<Payment>?>(null)
+    val createResult: StateFlow<Result<Payment>?> = _createResult
 
     fun loadPayments(context: Context) {
         viewModelScope.launch {
@@ -98,6 +102,41 @@ class PaymentViewModel : ViewModel() {
                 _isLoading.value = false
             }
         }
+    }
+
+    fun createPayment(
+        context: Context,
+        debtId: Int,
+        amount: Double,
+        receiptUri: Uri?
+    ) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            
+            try {
+                val repository = PaymentRepository(context)
+                val response = repository.createPayment(debtId, amount, receiptUri)
+                
+                if (response.isSuccessful) {
+                    _createResult.value = Result.success(response.body()!!)
+                } else {
+                    val errorMsg = "Error al crear pago: ${response.message()}"
+                    _createResult.value = Result.failure(Exception(errorMsg))
+                    _error.value = errorMsg
+                }
+            } catch (e: Exception) {
+                val errorMsg = "Error de conexión: ${e.message}"
+                _createResult.value = Result.failure(e)
+                _error.value = errorMsg
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun clearCreateResult() {
+        _createResult.value = null
     }
 
     fun clearUpdateResult() {

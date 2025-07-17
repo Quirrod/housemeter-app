@@ -141,6 +141,9 @@ class UsersViewModel : ViewModel() {
 
     fun clearCreateResult() {
         _createResult.value = null
+    }
+
+    fun clearUpdateResult() {
         _updateResult.value = null
     }
 
