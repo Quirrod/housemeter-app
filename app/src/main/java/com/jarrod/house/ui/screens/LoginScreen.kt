@@ -268,61 +268,6 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Demo Credentials Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Credenciales de Prueba",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text(
-                                text = "Admin:",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "admin / admin123",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        
-                        Column {
-                            Text(
-                                text = "Usuario:",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "user101 / user123",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
         }
     }
 }

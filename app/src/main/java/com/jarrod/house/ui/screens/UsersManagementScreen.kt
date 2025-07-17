@@ -97,6 +97,7 @@ fun UsersManagementScreen(
                     items(users) { user ->
                         UserCard(
                             user = user,
+                            apartments = apartments,
                             onEdit = { 
                                 selectedUser = user
                                 showEditDialog = true
@@ -161,6 +162,7 @@ fun UsersManagementScreen(
 @Composable
 fun UserCard(
     user: User,
+    apartments: List<Apartment>,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -193,11 +195,14 @@ fun UserCard(
                     }
                     
                     if (user.apartment_id != null) {
-                        Text(
-                            text = "Apartamento ID: ${user.apartment_id}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        val apartment = apartments.find { it.id == user.apartment_id }
+                        if (apartment != null) {
+                            Text(
+                                text = "Apartamento ${apartment.apartment_number} - Piso ${apartment.floor_number}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

@@ -26,14 +26,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
+import kotlinx.coroutines.launch
 import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.data.model.Payment
 import com.jarrod.house.ui.viewmodel.DebtViewModel
 import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
-import com.jarrod.house.ui.viewmodel.UsersViewModel
 import com.jarrod.house.ui.viewmodel.PaymentViewModel
+import com.jarrod.house.ui.viewmodel.UsersViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -149,11 +154,13 @@ fun AdminDashboard(
 fun DebtsTab(
     onCreateDebt: () -> Unit,
     debtViewModel: DebtViewModel = viewModel(),
-    apartmentsViewModel: ApartmentsViewModel = viewModel()
+    apartmentsViewModel: ApartmentsViewModel = viewModel(),
+    paymentViewModel: PaymentViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val debts by debtViewModel.debts.collectAsState()
     val apartments by apartmentsViewModel.apartments.collectAsState()
+    val payments by paymentViewModel.payments.collectAsState()
     val isLoading by debtViewModel.isLoading.collectAsState()
     val error by debtViewModel.error.collectAsState()
     val updateResult by debtViewModel.updateResult.collectAsState()
@@ -162,11 +169,14 @@ fun DebtsTab(
     var showEditDialog by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var selectedDebt by remember { mutableStateOf<Debt?>(null) }
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Todas", "Pendientes", "Pagadas", "Vencidas")
 
     // Load debts when tab is displayed
     LaunchedEffect(Unit) {
         debtViewModel.loadDebts(context)
         apartmentsViewModel.loadApartments(context)
+        paymentViewModel.loadPayments(context)
     }
 
     // Handle update results
@@ -215,6 +225,28 @@ fun DebtsTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Tab Row for filtering
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { 
+                        Text(
+                            title,
+                            fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -223,19 +255,67 @@ fun DebtsTab(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn {
-                items(debts) { debt ->
-                    AdminDebtCard(
-                        debt = debt,
-                        onEdit = { 
-                            selectedDebt = debt
-                            showEditDialog = true
-                        },
-                        onDelete = { 
-                            debtViewModel.deleteDebt(context, debt.id)
+            val filteredDebts = when (selectedTab) {
+                0 -> debts
+                1 -> debts.filter { it.status == "pending" }
+                2 -> debts.filter { it.status == "paid" }
+                3 -> debts.filter { it.status == "overdue" }
+                else -> debts
+            }
+
+            if (filteredDebts.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            when (selectedTab) {
+                                1 -> Icons.Default.PendingActions
+                                2 -> Icons.Default.CheckCircle
+                                3 -> Icons.Default.Warning
+                                else -> Icons.Default.Receipt
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = when (selectedTab) {
+                                1 -> "No hay deudas pendientes"
+                                2 -> "No hay deudas pagadas"
+                                3 -> "No hay deudas vencidas"
+                                else -> "No hay deudas registradas"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn {
+                    items(filteredDebts) { debt ->
+                        // Find the associated payment for this debt
+                        val associatedPayment = payments.find { payment -> 
+                            payment.debt_id == debt.id 
                         }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                        
+                        AdminDebtCard(
+                            debt = debt,
+                            payment = associatedPayment,
+                            onEdit = { 
+                                selectedDebt = debt
+                                showEditDialog = true
+                            },
+                            onDelete = { 
+                                debtViewModel.deleteDebt(context, debt.id)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                 }
             }
         }
@@ -531,9 +611,14 @@ fun MetricsTab(
 @Composable
 fun AdminDebtCard(
     debt: Debt,
+    payment: Payment? = null,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
+    var showImagePreview by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -633,6 +718,94 @@ fun AdminDebtCard(
                             )
                         }
                     }
+                    
+                    // Show payment receipt if debt is paid and payment has receipt
+                    if (debt.status == "paid" && payment != null && payment.receipt_path != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Comprobante de pago",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Preview button
+                                    OutlinedButton(
+                                        onClick = { showImagePreview = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "Vista previa",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    
+                                    // Download button
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                downloadReceipt(context, payment.receipt_path!!)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(8.dp),
+                                        enabled = !isDownloading
+                                    ) {
+                                        if (isDownloading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.Download,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            if (isDownloading) "Descargando..." else "Descargar",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 // Status badge with improved design
@@ -707,6 +880,73 @@ fun AdminDebtCard(
             }
         }
     }
+    
+    // Image preview dialog for paid debt receipts
+    if (showImagePreview && payment != null && payment.receipt_path != null) {
+        Dialog(
+            onDismissRequest = { showImagePreview = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Comprobante de pago",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showImagePreview = false }
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        "Apt. ${debt.apartment_number} - \$${payment.amount}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = getReceiptUrl(payment.receipt_path!!),
+                            contentDescription = "Comprobante de pago",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -716,8 +956,15 @@ fun PendingPaymentCard(
     onReject: () -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
+    val context = LocalContext.current
+    var showImagePreview by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -730,23 +977,105 @@ fun PendingPaymentCard(
             
             Text(
                 text = "Monto: $${payment.amount}",
-                style = MaterialTheme.typography.bodyLarge
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
             
             Text(
                 text = "Fecha: ${payment.payment_date}",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (payment.receipt_path != null) {
-                Text(
-                    text = "Comprobante: ${payment.receipt_path}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Comprobante adjunto",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Preview button
+                            OutlinedButton(
+                                onClick = { showImagePreview = true },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Visibility,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    "Vista previa",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            
+                            // Download button
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        downloadReceipt(context, payment.receipt_path!!)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(6.dp),
+                                contentPadding = PaddingValues(8.dp),
+                                enabled = !isDownloading
+                            ) {
+                                if (isDownloading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.Download,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    if (isDownloading) "Descargando..." else "Descargar",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -772,6 +1101,90 @@ fun PendingPaymentCard(
                 }
             }
         }
+    }
+
+    // Image preview dialog
+    if (showImagePreview && payment.receipt_path != null) {
+        Dialog(
+            onDismissRequest = { showImagePreview = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Comprobante de pago",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showImagePreview = false }
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        "Apt. ${payment.apartment_number} - \$${payment.amount}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = getReceiptUrl(payment.receipt_path!!),
+                            contentDescription = "Comprobante de pago",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Helper function to build the receipt URL
+private fun getReceiptUrl(receiptPath: String): String {
+    return "https://housemeter-backend-production.up.railway.app/uploads/$receiptPath"
+}
+
+// Download function
+private suspend fun downloadReceipt(context: android.content.Context, receiptPath: String) {
+    try {
+        val url = getReceiptUrl(receiptPath)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Handle download error
+        e.printStackTrace()
     }
 }
 

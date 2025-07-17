@@ -17,10 +17,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.*
+import java.text.SimpleDateFormat
 import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
 import com.jarrod.house.ui.viewmodel.DebtViewModel
+
+private fun formatDate(dateString: String): String {
+    return try {
+        val inputFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val outputFormatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val date = inputFormatter.parse(dateString)
+        outputFormatter.format(date ?: return dateString)
+    } catch (e: Exception) {
+        dateString
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +55,9 @@ fun DebtsManagementScreen(
     val error by debtViewModel.error.collectAsState()
     val createDebtResult by debtViewModel.createResult.collectAsState()
     val updateDebtResult by debtViewModel.updateResult.collectAsState()
+
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Todas", "Pendientes", "Pagadas", "Vencidas")
 
     // Load data when screen starts
     LaunchedEffect(Unit) {
@@ -82,6 +100,26 @@ fun DebtsManagementScreen(
             }
         )
 
+        // Tab Row
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { 
+                        Text(
+                            title,
+                            fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                )
+            }
+        }
+
         if (isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -90,21 +128,63 @@ fun DebtsManagementScreen(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(debts) { debt ->
-                    DebtCard(
-                        debt = debt,
-                        onEdit = { 
-                            selectedDebt = debt
-                            showEditDebtDialog = true
-                        },
-                        onDelete = { 
-                            debtViewModel.deleteDebt(context, debt.id)
-                        }
-                    )
+            val filteredDebts = when (selectedTab) {
+                0 -> debts
+                1 -> debts.filter { it.status == "pending" }
+                2 -> debts.filter { it.status == "paid" }
+                3 -> debts.filter { it.status == "overdue" }
+                else -> debts
+            }
+
+            if (filteredDebts.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            when (selectedTab) {
+                                1 -> Icons.Default.PendingActions
+                                2 -> Icons.Default.CheckCircle
+                                3 -> Icons.Default.Warning
+                                else -> Icons.Default.Receipt
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = when (selectedTab) {
+                                1 -> "No hay deudas pendientes"
+                                2 -> "No hay deudas pagadas"
+                                3 -> "No hay deudas vencidas"
+                                else -> "No hay deudas registradas"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredDebts) { debt ->
+                        DebtCard(
+                            debt = debt,
+                            onEdit = { 
+                                selectedDebt = debt
+                                showEditDebtDialog = true
+                            },
+                            onDelete = { 
+                                debtViewModel.deleteDebt(context, debt.id)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -256,7 +336,7 @@ fun DebtCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Vence: $date",
+                                text = "Vence: ${formatDate(date)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -340,6 +420,75 @@ fun DebtCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun DatePickerField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+
+    OutlinedTextField(
+        value = if (value.isNotBlank()) formatDate(value) else "",
+        onValueChange = { },
+        readOnly = true,
+        label = { Text(label) },
+        placeholder = { Text("Seleccionar fecha") },
+        trailingIcon = {
+            IconButton(onClick = { showDatePicker = true }) {
+                Icon(Icons.Default.CalendarToday, contentDescription = "Seleccionar fecha")
+            }
+        },
+        modifier = modifier
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDateSelected = { dateString ->
+                onValueChange(dateString)
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePickerDialog(
+    onDateSelected: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val datePickerState = rememberDatePickerState()
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = Date(millis)
+                        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                        onDateSelected(formatter.format(date))
+                    }
+                }
+            ) {
+                Text("Aceptar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun CreateDebtDialog(
     apartments: List<Apartment>,
     onDismiss: () -> Unit,
@@ -417,11 +566,10 @@ fun CreateDebtDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                DatePickerField(
                     value = dueDate,
                     onValueChange = { dueDate = it },
-                    label = { Text("Fecha de vencimiento (opcional)") },
-                    placeholder = { Text("YYYY-MM-DD") },
+                    label = "Fecha de vencimiento (opcional)",
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -533,11 +681,10 @@ fun EditDebtDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                OutlinedTextField(
+                DatePickerField(
                     value = dueDate,
                     onValueChange = { dueDate = it },
-                    label = { Text("Fecha de vencimiento (opcional)") },
-                    placeholder = { Text("YYYY-MM-DD") },
+                    label = "Fecha de vencimiento (opcional)",
                     modifier = Modifier.fillMaxWidth()
                 )
 

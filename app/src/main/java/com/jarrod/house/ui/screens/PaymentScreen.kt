@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -21,9 +22,31 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import android.provider.OpenableColumns
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.ui.viewmodel.PaymentViewModel
+
+// Helper function to get file name from URI
+@Composable
+fun getFileName(uri: Uri): String {
+    val context = LocalContext.current
+    var fileName = "archivo_seleccionado"
+    
+    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1) {
+                fileName = cursor.getString(nameIndex) ?: "archivo_seleccionado"
+            }
+        }
+    }
+    
+    return fileName
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,13 +60,14 @@ fun PaymentScreen(
     var amount by remember { mutableStateOf(debt.amount.toString()) }
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
     var isSubmitting by remember { mutableStateOf(false) }
+    var showImagePreview by remember { mutableStateOf(false) }
     
     val createResult by paymentViewModel.createResult.collectAsState()
     val error by paymentViewModel.error.collectAsState()
 
-    // File picker launcher
+    // File picker launcher - using OpenDocument for better file type support
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         receiptUri = uri
     }
@@ -301,7 +325,9 @@ fun PaymentScreen(
                                 )
 
                                 OutlinedButton(
-                                    onClick = { filePickerLauncher.launch("*/*") },
+                                    onClick = { 
+                                        filePickerLauncher.launch(arrayOf("image/*", "application/pdf"))
+                                    },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
@@ -324,22 +350,53 @@ fun PaymentScreen(
                                         ),
                                         shape = RoundedCornerShape(8.dp)
                                     ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                        Column(
+                                            modifier = Modifier.padding(12.dp)
                                         ) {
-                                            Icon(
-                                                Icons.Default.CheckCircle,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(
-                                                "Archivo seleccionado",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Column(
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        Text(
+                                                            "Archivo seleccionado",
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.primary
+                                                        )
+                                                        Text(
+                                                            getFileName(receiptUri!!),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+                                                }
+                                                
+                                                IconButton(
+                                                    onClick = { showImagePreview = true },
+                                                    modifier = Modifier.size(32.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Visibility,
+                                                        contentDescription = "Ver preview",
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -444,6 +501,73 @@ fun PaymentScreen(
                                 Text("OK")
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // Image preview dialog
+    if (showImagePreview && receiptUri != null) {
+        Dialog(
+            onDismissRequest = { showImagePreview = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Vista previa",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showImagePreview = false }
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        getFileName(receiptUri!!),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = receiptUri,
+                            contentDescription = "Vista previa de la imagen",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
                     }
                 }
             }

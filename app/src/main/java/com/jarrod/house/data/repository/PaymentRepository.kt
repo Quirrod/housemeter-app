@@ -31,15 +31,33 @@ class PaymentRepository(private val context: Context) {
         val receiptPart = receiptUri?.let { uri ->
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                val file = File(context.cacheDir, "receipt_${System.currentTimeMillis()}")
+                val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
+                val extension = when {
+                    mimeType.contains("png") -> ".png"
+                    mimeType.contains("jpeg") || mimeType.contains("jpg") -> ".jpg"
+                    mimeType.contains("pdf") -> ".pdf"
+                    else -> ".jpg"
+                }
+                val file = File(context.cacheDir, "receipt_${System.currentTimeMillis()}$extension")
                 inputStream?.use { input ->
                     file.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
-                val requestFile = file.asRequestBody("image/*".toMediaTypeOrNull())
+                
+                // Log file details for debugging
+                println("PaymentRepository: Preparing file upload")
+                println("  URI: $uri")
+                println("  MIME type: $mimeType")
+                println("  File name: ${file.name}")
+                println("  File size: ${file.length()} bytes")
+                println("  File exists: ${file.exists()}")
+                
+                val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
                 MultipartBody.Part.createFormData("receipt", file.name, requestFile)
             } catch (e: Exception) {
+                println("PaymentRepository: Error preparing file upload: ${e.message}")
+                e.printStackTrace()
                 null
             }
         }

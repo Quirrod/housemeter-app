@@ -9,13 +9,25 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.layout.ContentScale
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import java.io.File
+import java.net.URL
 import com.jarrod.house.data.model.Payment
 import com.jarrod.house.ui.viewmodel.PaymentViewModel
 
@@ -211,6 +223,10 @@ fun PaymentManagementCard(
     onReject: (() -> Unit)? = null,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
+    var showImagePreview by remember { mutableStateOf(false) }
+    var isDownloading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -336,22 +352,89 @@ fun PaymentManagementCard(
                     }
 
                     if (payment.receipt_path != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
+                            ),
+                            shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.padding(top = 8.dp)
                         ) {
-                            Icon(
-                                Icons.Default.AttachFile,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Comprobante adjunto",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Column(
+                                modifier = Modifier.padding(12.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Comprobante adjunto",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Preview button
+                                    OutlinedButton(
+                                        onClick = { showImagePreview = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(8.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Visibility,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            "Vista previa",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    
+                                    // Download button
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                downloadReceipt(context, payment.receipt_path!!)
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = PaddingValues(8.dp),
+                                        enabled = !isDownloading
+                                    ) {
+                                        if (isDownloading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(14.dp),
+                                                strokeWidth = 2.dp
+                                            )
+                                        } else {
+                                            Icon(
+                                                Icons.Default.Download,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            if (isDownloading) "Descargando..." else "Descargar",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -445,5 +528,89 @@ fun PaymentManagementCard(
                 }
             }
         }
+    }
+
+    // Image preview dialog
+    if (showImagePreview && payment.receipt_path != null) {
+        Dialog(
+            onDismissRequest = { showImagePreview = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Comprobante de pago",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        IconButton(
+                            onClick = { showImagePreview = false }
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        "Apt. ${payment.apartment_number} - \$${payment.amount}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(400.dp)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(8.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = getReceiptUrl(payment.receipt_path!!),
+                            contentDescription = "Comprobante de pago",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Helper function to build the receipt URL
+private fun getReceiptUrl(receiptPath: String): String {
+    return "https://housemeter-backend-production.up.railway.app/uploads/$receiptPath"
+}
+
+// Download function
+private suspend fun downloadReceipt(context: android.content.Context, receiptPath: String) {
+    try {
+        val url = getReceiptUrl(receiptPath)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        // Handle download error
+        e.printStackTrace()
     }
 }
