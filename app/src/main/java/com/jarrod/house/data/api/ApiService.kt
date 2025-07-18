@@ -45,6 +45,16 @@ interface ApiService {
 
     @DELETE("payments/{id}")
     suspend fun deletePayment(@Path("id") id: Int): Response<ApiResponse>
+    
+    // Notification endpoints
+    @POST("notifications/register-token")
+    suspend fun registerFcmToken(@Body request: FcmTokenRequest): Response<ApiResponse>
+    
+    @POST("notifications/remove-token")
+    suspend fun removeFcmToken(): Response<ApiResponse>
+    
+    @POST("notifications/test")
+    suspend fun sendTestNotification(@Body request: TestNotificationRequest): Response<ApiResponse>
 
     @GET("metrics/payments")
     suspend fun getPaymentMetrics(

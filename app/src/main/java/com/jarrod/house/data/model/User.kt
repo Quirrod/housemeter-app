@@ -16,3 +16,16 @@ data class LoginResponse(
     val token: String,
     val user: User
 )
+
+data class ApiResponse(
+    val message: String
+)
+
+data class FcmTokenRequest(
+    val fcm_token: String
+)
+
+data class TestNotificationRequest(
+    val title: String,
+    val body: String
+)

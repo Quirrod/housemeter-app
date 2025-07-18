@@ -7,4 +7,12 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    
+    <!-- HouseMeter App Colors -->
+    <color name="primary">#1976D2</color>
+    <color name="primary_dark">#1565C0</color>
+    <color name="accent">#4CAF50</color>
+    
+    <!-- Launcher icon colors -->
+    <color name="ic_launcher_background">#1976D2</color>
 </resources>

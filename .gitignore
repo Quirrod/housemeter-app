@@ -13,3 +13,11 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Release signing
+keystore.properties
+*.keystore
+*.jks
+
+# Google Services (contains sensitive data)
+# Note: google-services.json is needed for build but should be kept secure

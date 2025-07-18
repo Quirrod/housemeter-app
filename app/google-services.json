@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "772703100329",
+    "project_id": "testing-breick",
+    "storage_bucket": "testing-breick.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772703100329:android:0183899f2bf124f37438b8",
+        "android_client_info": {
+          "package_name": "com.jarrod.house"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSBDIJudV5W_YuP7a9L_lBP2gLZlWWgQI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

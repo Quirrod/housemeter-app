@@ -1,0 +1,38 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="256" fill="#1976D2"/>
+  
+  <!-- Inner circle -->
+  <circle cx="256" cy="256" r="200" fill="#2196F3"/>
+  
+  <!-- Building silhouette -->
+  <rect x="180" y="180" width="60" height="120" fill="white" opacity="0.9"/>
+  <rect x="260" y="160" width="60" height="140" fill="white" opacity="0.9"/>
+  <rect x="340" y="200" width="60" height="100" fill="white" opacity="0.9"/>
+  
+  <!-- Windows -->
+  <rect x="190" y="190" width="15" height="15" fill="#1976D2"/>
+  <rect x="210" y="190" width="15" height="15" fill="#1976D2"/>
+  <rect x="190" y="210" width="15" height="15" fill="#1976D2"/>
+  <rect x="210" y="210" width="15" height="15" fill="#1976D2"/>
+  
+  <rect x="270" y="170" width="15" height="15" fill="#1976D2"/>
+  <rect x="290" y="170" width="15" height="15" fill="#1976D2"/>
+  <rect x="270" y="190" width="15" height="15" fill="#1976D2"/>
+  <rect x="290" y="190" width="15" height="15" fill="#1976D2"/>
+  
+  <rect x="350" y="210" width="15" height="15" fill="#1976D2"/>
+  <rect x="370" y="210" width="15" height="15" fill="#1976D2"/>
+  <rect x="350" y="230" width="15" height="15" fill="#1976D2"/>
+  <rect x="370" y="230" width="15" height="15" fill="#1976D2"/>
+  
+  <!-- Meter/gauge element -->
+  <circle cx="256" cy="350" r="40" fill="#4CAF50" stroke="white" stroke-width="4"/>
+  <circle cx="256" cy="350" r="30" fill="none" stroke="white" stroke-width="3"/>
+  <line x1="256" y1="350" x2="256" y2="325" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  <line x1="256" y1="350" x2="275" y2="340" stroke="white" stroke-width="3" stroke-linecap="round"/>
+  
+  <!-- Title -->
+  <text x="256" y="420" text-anchor="middle" font-family="Arial, sans-serif" 
+        font-size="24" font-weight="bold" fill="white">HouseMeter</text>
+</svg>
