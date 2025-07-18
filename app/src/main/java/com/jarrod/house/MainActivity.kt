@@ -4,11 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.jarrod.house.data.datastore.DataStoreManager
+import com.jarrod.house.utils.NotificationManager
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,9 +37,22 @@ import com.jarrod.house.ui.screens.PaymentHistoryScreen
 import com.jarrod.house.ui.theme.HousemeterTheme
 
 class MainActivity : ComponentActivity() {
+    
+    private lateinit var dataStoreManager: DataStoreManager
+    private lateinit var notificationManager: NotificationManager
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // Initialize managers
+        dataStoreManager = DataStoreManager(this)
+        notificationManager = NotificationManager(this, dataStoreManager)
+        
+        // Request notification permission and initialize Firebase
+        notificationManager.requestNotificationPermission(this)
+        notificationManager.initializeFirebaseMessaging()
+        
         setContent {
             HousemeterTheme {
                 Surface(
@@ -49,11 +69,53 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun HouseMeterApp() {
     val navController = rememberNavController()
+    val context = LocalContext.current
     var userRole by remember { mutableStateOf<String?>(null) }
+    var isCheckingSession by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        val dataStoreManager = DataStoreManager(context)
+        val savedRole = dataStoreManager.getUserRole()
+        val savedToken = dataStoreManager.getAuthToken()
+        
+        if (savedRole != null && savedToken != null) {
+            userRole = savedRole
+        }
+        isCheckingSession = false
+    }
+
+    val logout = remember {
+        {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                val dataStoreManager = DataStoreManager(context)
+                dataStoreManager.clearAuthToken()
+                dataStoreManager.clearUserData()
+                userRole = null
+            }
+        }
+    }
+
+    if (isCheckingSession) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
 
     NavHost(
         navController = navController,
-        startDestination = "login"
+        startDestination = if (userRole != null) {
+            when (userRole) {
+                "admin" -> "admin_dashboard"
+                "user" -> "user_dashboard"
+                else -> "login"
+            }
+        } else {
+            "login"
+        }
     ) {
         composable("login") {
             LoginScreen(
@@ -89,7 +151,7 @@ fun HouseMeterApp() {
                     navController.navigate("apartments_management")
                 },
                 onLogout = {
-                    userRole = null
+                    logout()
                     navController.navigate("login") {
                         popUpTo("admin_dashboard") { inclusive = true }
                     }
@@ -106,7 +168,7 @@ fun HouseMeterApp() {
                     navController.navigate("payment_history")
                 },
                 onLogout = {
-                    userRole = null
+                    logout()
                     navController.navigate("login") {
                         popUpTo("user_dashboard") { inclusive = true }
                     }
