@@ -5,7 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    // alias(libs.plugins.google.services) // Temporarily disabled
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -34,8 +34,8 @@ android {
         applicationId = "com.jarrod.house"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.3"
+        versionCode = 6
+        versionName = "1.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -46,7 +46,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -121,6 +121,7 @@ dependencies {
     
     // Firebase
     implementation(platform(libs.firebase.bom))
+    implementation("com.google.firebase:firebase-common-ktx")
     implementation(libs.firebase.messaging)
     
     testImplementation(libs.junit)

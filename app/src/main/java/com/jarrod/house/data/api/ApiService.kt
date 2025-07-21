@@ -9,6 +9,9 @@ import retrofit2.http.*
 interface ApiService {
     @POST("auth/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
+    
+    @POST("auth/login")
+    suspend fun loginRaw(@Body request: LoginRequest): okhttp3.ResponseBody
 
     @GET("apartments")
     suspend fun getApartments(): Response<List<Apartment>>

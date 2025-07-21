@@ -1,6 +1,9 @@
 package com.jarrod.house.data.api
 
 import android.content.Context
+import com.google.gson.FieldNamingPolicy
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.jarrod.house.data.datastore.dataStore
 import com.jarrod.house.data.datastore.DataStoreKeys
 import kotlinx.coroutines.flow.first
@@ -21,6 +24,13 @@ object RetrofitClient {
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
+    
+    private val gson: Gson = GsonBuilder()
+        .setLenient()
+        .serializeNulls()
+        .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+        .disableHtmlEscaping()
+        .create()
 
     fun getApiService(context: Context): ApiService {
         val httpClient = OkHttpClient.Builder()
@@ -52,7 +62,7 @@ object RetrofitClient {
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(httpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
     }
@@ -76,7 +86,7 @@ object RetrofitClient {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(httpClient)
-            .addConverterFactory(GsonConverterFactory.create())
+            .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
     }

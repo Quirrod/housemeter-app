@@ -20,22 +20,45 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
 
-# Gson
+# MINIMAL rules - only what's absolutely necessary for Gson + Retrofit generics
 -keepattributes Signature
 -keepattributes *Annotation*
--dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
--keep class * implements com.google.gson.TypeAdapter
--keep class * implements com.google.gson.TypeAdapterFactory
--keep class * implements com.google.gson.JsonSerializer
--keep class * implements com.google.gson.JsonDeserializer
 
-# Data models
+# Essential Gson protection
+-keep class com.google.gson.** { *; }
+-dontwarn com.google.gson.**
+
+# Critical: Prevent type erasure for reflection
+-keep class java.lang.reflect.Type { *; }
+-keep class java.lang.reflect.ParameterizedType { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+
+# Retrofit Response wrapper protection  
+-keepnames class retrofit2.Response
+-keepclassmembers class retrofit2.Response { *; }
+
+# Data models - Keep all fields and methods with signatures
 -keep class com.jarrod.house.data.model.** { *; }
+-keepclassmembers class com.jarrod.house.data.model.** {
+    <fields>;
+    <methods>;
+}
+
+# Retrofit response types
+-keep class retrofit2.Response
+-keep class retrofit2.Call
+
+# API Service interfaces
+-keep interface com.jarrod.house.data.api.ApiService { *; }
+-keepclassmembers interface com.jarrod.house.data.api.ApiService {
+    *;
+}
 
 # Firebase
 -keep class com.google.firebase.** { *; }
 -keep class com.google.android.gms.** { *; }
+-keep class com.google.firebase.provider.FirebaseInitProvider { *; }
+-keep class com.google.firebase.components.** { *; }
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
 

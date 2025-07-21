@@ -15,13 +15,26 @@ class AuthRepository(private val context: Context) {
 
     suspend fun login(username: String, password: String): Response<LoginResponse> {
         val apiService = RetrofitClient.getApiService(context)
-        val response = apiService.login(LoginRequest(username, password))
-        if (response.isSuccessful) {
-            response.body()?.let { loginResponse ->
+        return try {
+            val response = apiService.login(LoginRequest(username, password))
+            if (response.isSuccessful) {
+                response.body()?.let { loginResponse ->
+                    saveUserData(loginResponse)
+                }
+            }
+            response
+        } catch (e: Exception) {
+            // Fallback to raw response parsing if generic type casting fails
+            try {
+                val rawResponse = apiService.loginRaw(LoginRequest(username, password))
+                val gson = com.google.gson.Gson()
+                val loginResponse = gson.fromJson(rawResponse.string(), LoginResponse::class.java)
                 saveUserData(loginResponse)
+                Response.success(loginResponse)
+            } catch (fallbackException: Exception) {
+                throw e // Rethrow original exception if fallback fails
             }
         }
-        return response
     }
 
     private suspend fun saveUserData(loginResponse: LoginResponse) {
