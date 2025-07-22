@@ -19,6 +19,7 @@ object DataStoreKeys {
     val USERNAME_KEY = stringPreferencesKey("username")
     val ROLE_KEY = stringPreferencesKey("role")
     val APARTMENT_ID_KEY = stringPreferencesKey("apartment_id")
+    val HOUSE_ID_KEY = stringPreferencesKey("house_id")
     val FCM_TOKEN_KEY = stringPreferencesKey("fcm_token")
 }
 

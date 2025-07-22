@@ -12,6 +12,9 @@ interface ApiService {
     
     @POST("auth/login")
     suspend fun loginRaw(@Body request: LoginRequest): okhttp3.ResponseBody
+    
+    @POST("auth/register-house-admin")
+    suspend fun registerHouseAdmin(@Body request: RegisterHouseAdminRequest): Response<RegisterHouseAdminResponse>
 
     @GET("apartments")
     suspend fun getApartments(): Response<List<Apartment>>

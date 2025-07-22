@@ -7,6 +7,8 @@ import com.jarrod.house.data.datastore.dataStore
 import com.jarrod.house.data.datastore.DataStoreKeys
 import com.jarrod.house.data.model.LoginRequest
 import com.jarrod.house.data.model.LoginResponse
+import com.jarrod.house.data.model.RegisterHouseAdminRequest
+import com.jarrod.house.data.model.RegisterHouseAdminResponse
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import retrofit2.Response
@@ -37,6 +39,25 @@ class AuthRepository(private val context: Context) {
         }
     }
 
+    suspend fun registerHouseAdmin(
+        username: String,
+        password: String,
+        houseName: String,
+        houseAddress: String,
+        houseDescription: String?
+    ): Response<RegisterHouseAdminResponse> {
+        val apiService = RetrofitClient.getApiService(context)
+        return apiService.registerHouseAdmin(
+            RegisterHouseAdminRequest(
+                username = username,
+                password = password,
+                house_name = houseName,
+                house_address = houseAddress,
+                house_description = houseDescription
+            )
+        )
+    }
+
     private suspend fun saveUserData(loginResponse: LoginResponse) {
         context.dataStore.edit { preferences ->
             preferences[DataStoreKeys.TOKEN_KEY] = loginResponse.token
@@ -45,6 +66,9 @@ class AuthRepository(private val context: Context) {
             preferences[DataStoreKeys.ROLE_KEY] = loginResponse.user.role
             loginResponse.user.apartment_id?.let {
                 preferences[DataStoreKeys.APARTMENT_ID_KEY] = it.toString()
+            }
+            loginResponse.user.house_id?.let {
+                preferences[DataStoreKeys.HOUSE_ID_KEY] = it.toString()
             }
         }
     }

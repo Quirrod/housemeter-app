@@ -36,6 +36,7 @@ import com.jarrod.house.ui.viewmodel.AuthViewModel
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit,
+    onNavigateToRegister: () -> Unit = {},
     viewModel: AuthViewModel = viewModel()
 ) {
     val context = LocalContext.current
@@ -263,6 +264,36 @@ fun LoginScreen(
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Register Button
+                    OutlinedButton(
+                        onClick = { onNavigateToRegister() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        enabled = !isLoading,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Business,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Registrarse como admin para su propia casa",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
