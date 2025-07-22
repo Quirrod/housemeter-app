@@ -1261,3 +1261,183 @@ fun ManagementTab(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditDebtDialog(
+    debt: Debt,
+    apartments: List<Apartment>,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Double, String?, String?) -> Unit
+) {
+    var selectedApartmentId by remember { mutableStateOf(debt.apartment_id) }
+    var amount by remember { mutableStateOf(debt.amount.toString()) }
+    var description by remember { mutableStateOf(debt.description ?: "") }
+    var dueDate by remember { mutableStateOf(debt.due_date ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar Deuda") },
+        text = {
+            Column {
+                // Amount field
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Monto") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Description field
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Descripción") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Due date field
+                OutlinedTextField(
+                    value = dueDate,
+                    onValueChange = { dueDate = it },
+                    label = { Text("Fecha de vencimiento (YYYY-MM-DD)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amountDouble = amount.toDoubleOrNull() ?: 0.0
+                    onConfirm(
+                        selectedApartmentId,
+                        amountDouble,
+                        description.ifBlank { null },
+                        dueDate.ifBlank { null }
+                    )
+                    onDismiss()
+                }
+            ) {
+                Text("Actualizar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CreateDebtDialog(
+    apartments: List<Apartment>,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Double, String?, String?) -> Unit
+) {
+    var selectedApartmentId by remember { mutableStateOf(apartments.firstOrNull()?.id ?: 0) }
+    var amount by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var dueDate by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Crear Nueva Deuda") },
+        text = {
+            Column {
+                // Apartment selection dropdown
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = apartments.find { it.id == selectedApartmentId }?.apartment_number ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Apartamento") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        apartments.forEach { apartment ->
+                            DropdownMenuItem(
+                                text = { Text("Apt ${apartment.apartment_number}") },
+                                onClick = {
+                                    selectedApartmentId = apartment.id
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Amount field
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Monto") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Description field
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Descripción") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Due date field
+                OutlinedTextField(
+                    value = dueDate,
+                    onValueChange = { dueDate = it },
+                    label = { Text("Fecha de vencimiento (YYYY-MM-DD)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amountDouble = amount.toDoubleOrNull() ?: 0.0
+                    if (amountDouble > 0 && selectedApartmentId > 0) {
+                        onConfirm(
+                            selectedApartmentId,
+                            amountDouble,
+                            description.ifBlank { null },
+                            dueDate.ifBlank { null }
+                        )
+                        onDismiss()
+                    }
+                }
+            ) {
+                Text("Crear")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
