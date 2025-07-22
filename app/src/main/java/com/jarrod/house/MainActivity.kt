@@ -34,6 +34,7 @@ import com.jarrod.house.ui.screens.MetricsScreen
 import com.jarrod.house.ui.screens.PaymentsManagementScreen
 import com.jarrod.house.ui.screens.PaymentScreen
 import com.jarrod.house.ui.screens.PaymentHistoryScreen
+import com.jarrod.house.ui.screens.RegisterScreen
 import com.jarrod.house.ui.theme.HousemeterTheme
 
 class MainActivity : ComponentActivity() {
@@ -128,6 +129,22 @@ fun HouseMeterApp() {
                         "user" -> navController.navigate("user_dashboard") {
                             popUpTo("login") { inclusive = true }
                         }
+                    }
+                },
+                onNavigateToRegister = {
+                    navController.navigate("register")
+                }
+            )
+        }
+
+        composable("register") {
+            RegisterScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onRegistrationSuccess = {
+                    navController.navigate("login") {
+                        popUpTo("register") { inclusive = true }
                     }
                 }
             )

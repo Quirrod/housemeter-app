@@ -123,7 +123,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation("com.google.firebase:firebase-common-ktx")
     implementation(libs.firebase.messaging)
-    
+    implementation(libs.firebase.inappmessaging.display)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
