@@ -19,6 +19,7 @@ import com.jarrod.house.data.model.User
 import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.ui.viewmodel.UsersViewModel
 import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
+import com.jarrod.house.ui.components.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,7 +31,9 @@ fun UsersManagementScreen(
     val context = LocalContext.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var selectedUser by remember { mutableStateOf<User?>(null) }
+    var userToDelete by remember { mutableStateOf<User?>(null) }
     
     val users by usersViewModel.users.collectAsState()
     val apartments by apartmentsViewModel.apartments.collectAsState()
@@ -103,7 +106,8 @@ fun UsersManagementScreen(
                                 showEditDialog = true
                             },
                             onDelete = { 
-                                usersViewModel.deleteUser(context, user.id)
+                                userToDelete = user
+                                showDeleteConfirmDialog = true
                             }
                         )
                     }
@@ -154,6 +158,22 @@ fun UsersManagementScreen(
             },
             onConfirm = { username: String, role: String, apartmentId: Int? ->
                 usersViewModel.updateUser(context, selectedUser!!.id, username, null, role, apartmentId)
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && userToDelete != null) {
+        ConfirmDialog(
+            title = "Eliminar Usuario",
+            message = "¿Está seguro que desea eliminar el usuario '${userToDelete!!.username}'? Esta acción no se puede deshacer y eliminará todos los datos asociados al usuario.",
+            confirmText = "Eliminar",
+            cancelText = "Cancelar",
+            onConfirm = {
+                usersViewModel.deleteUser(context, userToDelete!!.id)
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                userToDelete = null
             }
         )
     }

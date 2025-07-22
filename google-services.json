@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "569790722943",
+    "project_id": "homemeter-f4869",
+    "storage_bucket": "homemeter-f4869.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:569790722943:android:242f04da19598c0e4f604a",
+        "android_client_info": {
+          "package_name": "com.jarrod.house"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBBFX1AAJ9IOEItYBqM-eJCgrcocuQznWI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

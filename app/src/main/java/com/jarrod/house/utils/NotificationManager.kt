@@ -70,7 +70,7 @@ class NotificationManager(
             val authToken = dataStoreManager.getAuthToken()
             if (authToken != null) {
                 Log.d("FCM", "Auth token available, registering FCM token...")
-                val response = RetrofitClient.apiService.registerFcmToken(
+                val response = RetrofitClient.getApiService(context).registerFcmToken(
                     FcmTokenRequest(token)
                 )
                 if (response.isSuccessful) {
@@ -93,7 +93,7 @@ class NotificationManager(
         try {
             val authToken = dataStoreManager.getAuthToken()
             if (authToken != null) {
-                RetrofitClient.apiService.removeFcmToken()
+                RetrofitClient.getApiService(context).removeFcmToken()
                 dataStoreManager.clearFcmToken()
             }
         } catch (e: Exception) {

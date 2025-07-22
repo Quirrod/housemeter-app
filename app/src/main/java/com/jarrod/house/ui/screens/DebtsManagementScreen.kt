@@ -25,6 +25,7 @@ import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
 import com.jarrod.house.ui.viewmodel.DebtViewModel
+import com.jarrod.house.ui.components.ConfirmDialog
 
 private fun formatDate(dateString: String): String {
     return try {
@@ -47,7 +48,9 @@ fun DebtsManagementScreen(
     val context = LocalContext.current
     var showCreateDebtDialog by remember { mutableStateOf(false) }
     var showEditDebtDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     var selectedDebt by remember { mutableStateOf<Debt?>(null) }
+    var debtToDelete by remember { mutableStateOf<Debt?>(null) }
     
     val debts by debtViewModel.debts.collectAsState()
     val apartments by apartmentsViewModel.apartments.collectAsState()
@@ -181,7 +184,8 @@ fun DebtsManagementScreen(
                                 showEditDebtDialog = true
                             },
                             onDelete = { 
-                                debtViewModel.deleteDebt(context, debt.id)
+                                debtToDelete = debt
+                                showDeleteConfirmDialog = true
                             }
                         )
                     }
@@ -232,6 +236,22 @@ fun DebtsManagementScreen(
             },
             onConfirm = { apartmentId, amount, description, dueDate ->
                 debtViewModel.updateDebt(context, selectedDebt!!.id, apartmentId, amount, description, dueDate)
+            }
+        )
+    }
+
+    if (showDeleteConfirmDialog && debtToDelete != null) {
+        ConfirmDialog(
+            title = "Eliminar Deuda",
+            message = "¿Está seguro que desea eliminar la deuda de $${debtToDelete!!.amount} del apartamento ${debtToDelete!!.apartment_number}? Esta acción no se puede deshacer.",
+            confirmText = "Eliminar",
+            cancelText = "Cancelar",
+            onConfirm = {
+                debtViewModel.deleteDebt(context, debtToDelete!!.id)
+            },
+            onDismiss = {
+                showDeleteConfirmDialog = false
+                debtToDelete = null
             }
         )
     }

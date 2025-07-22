@@ -82,12 +82,17 @@ class DataStoreManager(private val context: Context) {
         return context.dataStore.data.first()[DataStoreKeys.USER_ID_KEY]
     }
     
+    suspend fun getHouseId(): String? {
+        return context.dataStore.data.first()[DataStoreKeys.HOUSE_ID_KEY]
+    }
+    
     suspend fun clearUserData() {
         context.dataStore.edit { preferences ->
             preferences.remove(DataStoreKeys.USER_ID_KEY)
             preferences.remove(DataStoreKeys.USERNAME_KEY)
             preferences.remove(DataStoreKeys.ROLE_KEY)
             preferences.remove(DataStoreKeys.APARTMENT_ID_KEY)
+            preferences.remove(DataStoreKeys.HOUSE_ID_KEY)
         }
     }
 }

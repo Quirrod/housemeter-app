@@ -110,7 +110,7 @@ fun HouseMeterApp() {
         navController = navController,
         startDestination = if (userRole != null) {
             when (userRole) {
-                "admin" -> "admin_dashboard"
+                "admin", "house_admin" -> "admin_dashboard"
                 "user" -> "user_dashboard"
                 else -> "login"
             }
@@ -123,7 +123,7 @@ fun HouseMeterApp() {
                 onLoginSuccess = { role ->
                     userRole = role
                     when (role) {
-                        "admin" -> navController.navigate("admin_dashboard") {
+                        "admin", "house_admin" -> navController.navigate("admin_dashboard") {
                             popUpTo("login") { inclusive = true }
                         }
                         "user" -> navController.navigate("user_dashboard") {

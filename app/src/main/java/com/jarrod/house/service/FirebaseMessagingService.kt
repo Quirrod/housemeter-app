@@ -65,7 +65,7 @@ class HouseMeterFirebaseMessagingService : FirebaseMessagingService() {
                 val authToken = dataStoreManager.getAuthToken()
                 
                 if (authToken != null) {
-                    val response = RetrofitClient.apiService.registerFcmToken(
+                    val response = RetrofitClient.getApiService(this@HouseMeterFirebaseMessagingService).registerFcmToken(
                         FcmTokenRequest(token)
                     )
                     if (response.isSuccessful) {

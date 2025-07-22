@@ -17,6 +17,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Floor
 import com.jarrod.house.ui.viewmodel.ApartmentsViewModel
+import com.jarrod.house.ui.components.ConfirmDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,8 +30,12 @@ fun ApartmentsManagementScreen(
     var showCreateFloorDialog by remember { mutableStateOf(false) }
     var showEditApartmentDialog by remember { mutableStateOf(false) }
     var showEditFloorDialog by remember { mutableStateOf(false) }
+    var showDeleteApartmentConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteFloorConfirmDialog by remember { mutableStateOf(false) }
     var selectedApartment by remember { mutableStateOf<Apartment?>(null) }
     var selectedFloor by remember { mutableStateOf<Floor?>(null) }
+    var apartmentToDelete by remember { mutableStateOf<Apartment?>(null) }
+    var floorToDelete by remember { mutableStateOf<Floor?>(null) }
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Apartamentos", "Pisos")
     
@@ -124,8 +129,9 @@ fun ApartmentsManagementScreen(
                     selectedApartment = apartment
                     showEditApartmentDialog = true
                 },
-                onDeleteApartment = { apartmentId ->
-                    viewModel.deleteApartment(context, apartmentId)
+                onDeleteApartment = { apartment ->
+                    apartmentToDelete = apartment
+                    showDeleteApartmentConfirmDialog = true
                 }
             )
             1 -> FloorsTab(
@@ -135,8 +141,9 @@ fun ApartmentsManagementScreen(
                     selectedFloor = floor
                     showEditFloorDialog = true
                 },
-                onDeleteFloor = { floorId ->
-                    viewModel.deleteFloor(context, floorId)
+                onDeleteFloor = { floor ->
+                    floorToDelete = floor
+                    showDeleteFloorConfirmDialog = true
                 }
             )
         }
@@ -209,6 +216,38 @@ fun ApartmentsManagementScreen(
             }
         )
     }
+
+    if (showDeleteApartmentConfirmDialog && apartmentToDelete != null) {
+        ConfirmDialog(
+            title = "Eliminar Apartamento",
+            message = "¿Está seguro que desea eliminar el apartamento ${apartmentToDelete!!.apartment_number} del piso ${apartmentToDelete!!.floor_number}? Esta acción no se puede deshacer y eliminará todos los datos asociados.",
+            confirmText = "Eliminar",
+            cancelText = "Cancelar",
+            onConfirm = {
+                viewModel.deleteApartment(context, apartmentToDelete!!.id)
+            },
+            onDismiss = {
+                showDeleteApartmentConfirmDialog = false
+                apartmentToDelete = null
+            }
+        )
+    }
+
+    if (showDeleteFloorConfirmDialog && floorToDelete != null) {
+        ConfirmDialog(
+            title = "Eliminar Piso",
+            message = "¿Está seguro que desea eliminar el piso ${floorToDelete!!.floor_number}? Esta acción no se puede deshacer y eliminará todos los apartamentos y datos asociados.",
+            confirmText = "Eliminar",
+            cancelText = "Cancelar",
+            onConfirm = {
+                viewModel.deleteFloor(context, floorToDelete!!.id)
+            },
+            onDismiss = {
+                showDeleteFloorConfirmDialog = false
+                floorToDelete = null
+            }
+        )
+    }
 }
 
 @Composable
@@ -216,7 +255,7 @@ fun ApartmentsTab(
     apartments: List<Apartment>,
     isLoading: Boolean,
     onEditApartment: (Apartment) -> Unit,
-    onDeleteApartment: (Int) -> Unit
+    onDeleteApartment: (Apartment) -> Unit
 ) {
     if (isLoading) {
         Box(
@@ -237,7 +276,7 @@ fun ApartmentsTab(
                         onEditApartment(apartment)
                     },
                     onDelete = { 
-                        onDeleteApartment(apartment.id)
+                        onDeleteApartment(apartment)
                     }
                 )
             }
@@ -250,7 +289,7 @@ fun FloorsTab(
     floors: List<Floor>,
     isLoading: Boolean,
     onEditFloor: (Floor) -> Unit,
-    onDeleteFloor: (Int) -> Unit
+    onDeleteFloor: (Floor) -> Unit
 ) {
     if (isLoading) {
         Box(
@@ -271,7 +310,7 @@ fun FloorsTab(
                         onEditFloor(floor)
                     },
                     onDelete = { 
-                        onDeleteFloor(floor.id)
+                        onDeleteFloor(floor)
                     }
                 )
             }

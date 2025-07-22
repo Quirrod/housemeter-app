@@ -28,7 +28,7 @@ class NotificationTestViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(isLoading = true, message = null)
             
             try {
-                val response = RetrofitClient.apiService.sendTestNotification(
+                val response = RetrofitClient.getApiService(context).sendTestNotification(
                     TestNotificationRequest(title, body)
                 )
                 

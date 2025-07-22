@@ -27,7 +27,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.FileOutputStream
 import java.net.URL
+import android.app.DownloadManager
+import android.content.Context
+import android.os.Environment
+import android.widget.Toast
 import com.jarrod.house.data.model.Payment
 import com.jarrod.house.ui.viewmodel.PaymentViewModel
 
@@ -407,7 +412,9 @@ fun PaymentManagementCard(
                                     OutlinedButton(
                                         onClick = {
                                             scope.launch {
+                                                isDownloading = true
                                                 downloadReceipt(context, payment.receipt_path!!)
+                                                isDownloading = false
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
@@ -586,7 +593,7 @@ fun PaymentManagementCard(
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
-                            model = getReceiptUrl(payment.receipt_path!!),
+                            model = payment.receipt_path!!,
                             contentDescription = "Comprobante de pago",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
@@ -598,19 +605,31 @@ fun PaymentManagementCard(
     }
 }
 
-// Helper function to build the receipt URL
-private fun getReceiptUrl(receiptPath: String): String {
-    return "https://housemeter-backend-production.up.railway.app/uploads/$receiptPath"
-}
-
 // Download function
-private suspend fun downloadReceipt(context: android.content.Context, receiptPath: String) {
+private suspend fun downloadReceipt(context: android.content.Context, receiptUrl: String) {
     try {
-        val url = getReceiptUrl(receiptPath)
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        context.startActivity(intent)
+        withContext(Dispatchers.Main) {
+            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            
+            // Extract filename from URL or create a default name
+            val fileName = "comprobante_${System.currentTimeMillis()}.jpg"
+            
+            val request = DownloadManager.Request(Uri.parse(receiptUrl)).apply {
+                setTitle("Descargando comprobante")
+                setDescription("Descargando comprobante de pago")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                setAllowedOverMetered(true)
+                setAllowedOverRoaming(true)
+            }
+            
+            downloadManager.enqueue(request)
+            Toast.makeText(context, "Iniciando descarga...", Toast.LENGTH_SHORT).show()
+        }
     } catch (e: Exception) {
-        // Handle download error
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Error al descargar: ${e.message}", Toast.LENGTH_LONG).show()
+        }
         e.printStackTrace()
     }
 }

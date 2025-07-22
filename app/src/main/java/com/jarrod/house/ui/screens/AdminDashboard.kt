@@ -32,6 +32,12 @@ import coil.compose.AsyncImage
 import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.launch
+import android.app.DownloadManager
+import android.content.Context
+import android.os.Environment
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.jarrod.house.data.model.Apartment
 import com.jarrod.house.data.model.Debt
 import com.jarrod.house.data.model.Payment
@@ -776,7 +782,9 @@ fun AdminDebtCard(
                                     OutlinedButton(
                                         onClick = {
                                             scope.launch {
+                                                isDownloading = true
                                                 downloadReceipt(context, payment.receipt_path!!)
+                                                isDownloading = false
                                             }
                                         },
                                         modifier = Modifier.weight(1f),
@@ -937,7 +945,7 @@ fun AdminDebtCard(
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
-                            model = getReceiptUrl(payment.receipt_path!!),
+                            model = payment.receipt_path!!,
                             contentDescription = "Comprobante de pago",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
@@ -1044,7 +1052,9 @@ fun PendingPaymentCard(
                             OutlinedButton(
                                 onClick = {
                                     scope.launch {
+                                        isDownloading = true
                                         downloadReceipt(context, payment.receipt_path!!)
+                                        isDownloading = false
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
@@ -1159,7 +1169,7 @@ fun PendingPaymentCard(
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
-                            model = getReceiptUrl(payment.receipt_path!!),
+                            model = payment.receipt_path!!,
                             contentDescription = "Comprobante de pago",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
@@ -1171,19 +1181,31 @@ fun PendingPaymentCard(
     }
 }
 
-// Helper function to build the receipt URL
-private fun getReceiptUrl(receiptPath: String): String {
-    return "https://housemeter-backend-production.up.railway.app/uploads/$receiptPath"
-}
-
 // Download function
-private suspend fun downloadReceipt(context: android.content.Context, receiptPath: String) {
+private suspend fun downloadReceipt(context: android.content.Context, receiptUrl: String) {
     try {
-        val url = getReceiptUrl(receiptPath)
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        context.startActivity(intent)
+        withContext(Dispatchers.Main) {
+            val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            
+            // Extract filename from URL or create a default name
+            val fileName = "comprobante_${System.currentTimeMillis()}.jpg"
+            
+            val request = DownloadManager.Request(Uri.parse(receiptUrl)).apply {
+                setTitle("Descargando comprobante")
+                setDescription("Descargando comprobante de pago")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+                setAllowedOverMetered(true)
+                setAllowedOverRoaming(true)
+            }
+            
+            downloadManager.enqueue(request)
+            Toast.makeText(context, "Iniciando descarga...", Toast.LENGTH_SHORT).show()
+        }
     } catch (e: Exception) {
-        // Handle download error
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, "Error al descargar: ${e.message}", Toast.LENGTH_LONG).show()
+        }
         e.printStackTrace()
     }
 }
@@ -1260,184 +1282,4 @@ fun ManagementTab(
             }
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditDebtDialog(
-    debt: Debt,
-    apartments: List<Apartment>,
-    onDismiss: () -> Unit,
-    onConfirm: (Int, Double, String?, String?) -> Unit
-) {
-    var selectedApartmentId by remember { mutableStateOf(debt.apartment_id) }
-    var amount by remember { mutableStateOf(debt.amount.toString()) }
-    var description by remember { mutableStateOf(debt.description ?: "") }
-    var dueDate by remember { mutableStateOf(debt.due_date ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar Deuda") },
-        text = {
-            Column {
-                // Amount field
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Monto") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Description field
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Descripción") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Due date field
-                OutlinedTextField(
-                    value = dueDate,
-                    onValueChange = { dueDate = it },
-                    label = { Text("Fecha de vencimiento (YYYY-MM-DD)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amountDouble = amount.toDoubleOrNull() ?: 0.0
-                    onConfirm(
-                        selectedApartmentId,
-                        amountDouble,
-                        description.ifBlank { null },
-                        dueDate.ifBlank { null }
-                    )
-                    onDismiss()
-                }
-            ) {
-                Text("Actualizar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun CreateDebtDialog(
-    apartments: List<Apartment>,
-    onDismiss: () -> Unit,
-    onConfirm: (Int, Double, String?, String?) -> Unit
-) {
-    var selectedApartmentId by remember { mutableStateOf(apartments.firstOrNull()?.id ?: 0) }
-    var amount by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var dueDate by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Crear Nueva Deuda") },
-        text = {
-            Column {
-                // Apartment selection dropdown
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
-                ) {
-                    OutlinedTextField(
-                        value = apartments.find { it.id == selectedApartmentId }?.apartment_number ?: "",
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Apartamento") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor()
-                    )
-                    
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        apartments.forEach { apartment ->
-                            DropdownMenuItem(
-                                text = { Text("Apt ${apartment.apartment_number}") },
-                                onClick = {
-                                    selectedApartmentId = apartment.id
-                                    expanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Amount field
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Monto") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Description field
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Descripción") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                // Due date field
-                OutlinedTextField(
-                    value = dueDate,
-                    onValueChange = { dueDate = it },
-                    label = { Text("Fecha de vencimiento (YYYY-MM-DD)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val amountDouble = amount.toDoubleOrNull() ?: 0.0
-                    if (amountDouble > 0 && selectedApartmentId > 0) {
-                        onConfirm(
-                            selectedApartmentId,
-                            amountDouble,
-                            description.ifBlank { null },
-                            dueDate.ifBlank { null }
-                        )
-                        onDismiss()
-                    }
-                }
-            ) {
-                Text("Crear")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
 }
