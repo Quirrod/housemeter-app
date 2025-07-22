@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessaging
@@ -40,12 +41,24 @@ class NotificationManager(
     fun initializeFirebaseMessaging() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                Log.d("FCM", "Initializing Firebase Messaging...")
                 val token = FirebaseMessaging.getInstance().token.await()
+                
                 // Store token locally
                 dataStoreManager.saveFcmToken(token)
+                
+                // Enhanced logging for testing
+                Log.i("FCM", "=================================")
+                Log.i("FCM", "FCM TOKEN FOR TESTING:")
+                Log.i("FCM", token)
+                Log.i("FCM", "=================================")
+                Log.d("FCM", "Token length: ${token.length}")
+                Log.d("FCM", "Token saved to DataStore successfully")
+                
                 // Send token to backend
                 sendTokenToBackend(token)
             } catch (e: Exception) {
+                Log.e("FCM", "Failed to initialize Firebase Messaging", e)
                 e.printStackTrace()
             }
         }
@@ -53,18 +66,25 @@ class NotificationManager(
 
     private suspend fun sendTokenToBackend(token: String) {
         try {
+            Log.d("FCM", "Sending FCM token to backend...")
             val authToken = dataStoreManager.getAuthToken()
             if (authToken != null) {
+                Log.d("FCM", "Auth token available, registering FCM token...")
                 val response = RetrofitClient.apiService.registerFcmToken(
                     FcmTokenRequest(token)
                 )
                 if (response.isSuccessful) {
-                    println("FCM token registered successfully")
+                    Log.i("FCM", "✅ FCM token registered successfully with backend")
+                    Log.d("FCM", "Response: ${response.body()}")
                 } else {
-                    println("Failed to register FCM token: ${response.code()}")
+                    Log.w("FCM", "❌ Failed to register FCM token: ${response.code()}")
+                    Log.w("FCM", "Error body: ${response.errorBody()?.string()}")
                 }
+            } else {
+                Log.w("FCM", "⚠️ No auth token available, skipping FCM token registration")
             }
         } catch (e: Exception) {
+            Log.e("FCM", "Exception while sending FCM token to backend", e)
             e.printStackTrace()
         }
     }

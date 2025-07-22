@@ -17,24 +17,42 @@ import com.jarrod.house.data.model.FcmTokenRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.util.Log
 
 class HouseMeterFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
-
-        // Handle FCM messages here
+        
+        Log.i("FCM_MESSAGE", "==================================")
+        Log.i("FCM_MESSAGE", "📩 RECEIVED FCM MESSAGE:")
+        Log.i("FCM_MESSAGE", "From: ${remoteMessage.from}")
+        Log.i("FCM_MESSAGE", "Message ID: ${remoteMessage.messageId}")
+        Log.i("FCM_MESSAGE", "Data: ${remoteMessage.data}")
+        
         remoteMessage.notification?.let { notification ->
+            Log.i("FCM_MESSAGE", "Title: ${notification.title}")
+            Log.i("FCM_MESSAGE", "Body: ${notification.body}")
+            Log.i("FCM_MESSAGE", "==================================")
+            
             showNotification(
                 title = notification.title ?: "HouseMeter",
                 body = notification.body ?: "You have a new notification",
                 data = remoteMessage.data
             )
+        } ?: run {
+            Log.w("FCM_MESSAGE", "No notification payload found")
+            Log.i("FCM_MESSAGE", "==================================")
         }
     }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
+        Log.i("FCM", "==================================")
+        Log.i("FCM", "🔄 NEW FCM TOKEN GENERATED:")
+        Log.i("FCM", token)
+        Log.i("FCM", "==================================")
+        
         // Send token to your backend server
         sendTokenToServer(token)
     }
@@ -42,6 +60,7 @@ class HouseMeterFirebaseMessagingService : FirebaseMessagingService() {
     private fun sendTokenToServer(token: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                Log.d("FCM", "Updating FCM token on server...")
                 val dataStoreManager = DataStoreManager(this@HouseMeterFirebaseMessagingService)
                 val authToken = dataStoreManager.getAuthToken()
                 
@@ -51,12 +70,15 @@ class HouseMeterFirebaseMessagingService : FirebaseMessagingService() {
                     )
                     if (response.isSuccessful) {
                         dataStoreManager.saveFcmToken(token)
-                        println("FCM token updated successfully")
+                        Log.i("FCM", "✅ FCM token updated successfully on server")
                     } else {
-                        println("Failed to update FCM token: ${response.code()}")
+                        Log.w("FCM", "❌ Failed to update FCM token: ${response.code()}")
                     }
+                } else {
+                    Log.w("FCM", "⚠️ No auth token available for FCM token update")
                 }
             } catch (e: Exception) {
+                Log.e("FCM", "Exception while updating FCM token on server", e)
                 e.printStackTrace()
             }
         }
